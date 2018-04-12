@@ -81,16 +81,87 @@ class FilterLink extends React.Component {
       return <Text style={{fontWeight: 'bold'}}>{this.props.text}</Text>;
     }
     return (
-   <TouchableHighlight onPress={() => {
-    this.props.store.dispatch({
-        type: 'SET_VISIBILITY_FILTER',
-        filter: this.props.filter,
-      });
-   }}>
-      <Text>{this.props.text}</Text>
-    </TouchableHighlight>);
+      <TouchableHighlight onPress={() => {this.props.onClick(this.props.filter)}}>
+        <Text>{this.props.text}</Text>
+      </TouchableHighlight>
+    );
   }
 }
+
+class Todo extends React.Component {
+  render() {
+    return (
+      <TouchableHighlight onPress={this.props.onClick}>
+        <Text style={{
+          textDecorationLine: this.props.completed ? 'line-through' : 'none', 
+          textDecorationStyle: 'solid'
+        }}>{this.props.text} + {this.props.completed + ''}</Text>
+      </TouchableHighlight>
+    );
+  }
+}
+
+
+class TodoList extends React.Component {
+  render() {
+    return (
+      <ListView
+      dataSource={this.props.dataSource}
+      renderRow={(rowData) => 
+          <Todo 
+            completed={rowData.completed} 
+            text={rowData.text} 
+            onClick={() => {this.props.onTodoClick(rowData.id)}} 
+          />
+        }
+      />
+    );
+  }
+}
+
+
+class AddTodo extends React.Component {
+  render() {
+  let input;
+    return (
+      <View>
+        <TextInput 
+            //ref={component => this._textInput = component } 
+            ref={component => input = component } 
+            style={styles.input}
+            autoCapitalize={'none'}
+            onChangeText={(todoname) => this.setState({todoname})}
+            //onChangeText={(todoname) => todotext = todoname})} 
+        />
+        <Button
+          onPress={() => { 
+            input.setNativeProps({text: ''});
+            this.props.onButtonClick(this.state.todoname);
+          }}
+          title="Add To Do"
+          color="#841584"
+        />
+      </View>
+    );
+  }
+}
+
+
+
+class Footer extends React.Component {
+  render() {
+    return (
+      <View>
+        <FilterLink text='All' filter='SHOW_ALL' currentfilter={this.props.currentfilter} onClick={this.props.onFilterClick} />
+        <FilterLink text='Active' filter='SHOW_ACTIVE' currentfilter={this.props.currentfilter} onClick={this.props.onFilterClick} />
+        <FilterLink text='Completed' filter='SHOW_COMPLETED' currentfilter={this.props.currentfilter} onClick={this.props.onFilterClick} />
+      </View>
+    );
+  }
+}
+
+
+
 
 export default class App extends React.Component {
 
@@ -112,47 +183,61 @@ constructor() {
     this.state = {
       dataSource: ds.cloneWithRows(this.todos),
     };
+    this.handler = this.handler.bind(this);
   }
+
+handler() {
+  this.setState({update: true});
+}
+
+
+// todosHandler() {
+//   let todos = getVisibleTodos(this.store.getState().todos, this.store.getState().visibilityFilter);
+//   this.state.dataSource = ds.cloneWithRows(todos);
+// }
   
 _onPressButton() {
   console.log('pressed');
 }
 
+
   render() {
     return (
       <Provider store={store}>
         <View style={styles.container}>
-          <TextInput 
-            ref={component => this._textInput = component } 
-            style={styles.input}
-            autoCapitalize={'none'}
-            onChangeText={(todoname) => this.setState({todoname})} />
-          <Button
-            onPress={() => { this.store.dispatch({
-              type: 'ADD_TODO',
-              text: this.state.todoname,
-              id: nextTodoId++,
-            });
-            this._textInput.setNativeProps({text: ''});
-            console.log(this.todos);
-          }}
-            title="Add To Do"
-            color="#841584"
-          />
-          <ListView
+
+          <AddTodo 
+            onButtonClick={(text) => { 
+              this.store.dispatch({
+                type: 'ADD_TODO',
+                text: text,
+                id: nextTodoId++,
+              });
+            this.handler();
+          }} />
+
+          <TodoList 
             dataSource={this.state.dataSource}
-            renderRow={(rowData) => 
-                <TouchableHighlight onPress={() => this.store.dispatch({
+            onTodoClick={(id) => {
+                this.store.dispatch({
                   type: 'TOGGLE_TODO',
-                  id: rowData.id,
-                })}>
-                  <Text style={{textDecorationLine: rowData.completed ? 'line-through' : 'none', textDecorationStyle: 'solid'}}>{rowData.text} + {rowData.completed + ''}</Text>
-                </TouchableHighlight>
+                  id: id,
+                });
+                this.handler();
               }
+            }
           />
-          <FilterLink text='All' filter='SHOW_ALL' store={this.store} currentfilter={this.currentfilter} />
-          <FilterLink text='Active' filter='SHOW_ACTIVE' store={this.store} currentfilter={this.currentfilter} />
-          <FilterLink text='Completed' filter='SHOW_COMPLETED' store={this.store} currentfilter={this.currentfilter} />
+
+          <Footer onFilterClick={(filter) => {
+            console.log('filter send in is:', filter);
+              this.store.dispatch({
+                  type: 'SET_VISIBILITY_FILTER',
+                  filter: filter,
+                });
+              this.handler();
+            }}
+            currentfilter={this.currentfilter}
+          />
           <Text>Open up App.js to start working on your app!</Text>
           <Text>Changes you make will automatically reload.</Text>
           <Text>Shake your phone to open the developer menu.</Text>
