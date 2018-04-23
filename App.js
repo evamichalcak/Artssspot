@@ -73,30 +73,77 @@ store.subscribe((action) => {
     console.log(store.getState());
   });
 
-let nextTodoId = 5;
+let nextTodoId = 0;
 
-class FilterLink extends React.Component {
+class Link extends React.Component {
   render() {
-    if  (this.props.currentfilter === this.props.filter) {
+    if  (this.props.active) {
       return <Text style={{fontWeight: 'bold'}}>{this.props.text}</Text>;
     }
     return (
-      <TouchableHighlight onPress={() => {this.props.onClick(this.props.filter)}}>
+      <TouchableHighlight onPress={() => {this.props.onClick()}}>
         <Text>{this.props.text}</Text>
       </TouchableHighlight>
     );
   }
 }
 
-class Todo extends React.Component {
+class FilterLink extends React.Component {
+  
+  componentDidMount() {
+    this.unsubscribe = store.subscribe(() => {
+      this.forceUpdate();
+    });
+  }
+
+  componentWillUnmount() {
+    this.unsubscribe();
+  }
+
   render() {
+    state = store.getState();
+
     return (
-      <TouchableHighlight onPress={this.props.onClick}>
-        <Text style={{
-          textDecorationLine: this.props.completed ? 'line-through' : 'none', 
-          textDecorationStyle: 'solid'
-        }}>{this.props.text} + {this.props.completed + ''}</Text>
-      </TouchableHighlight>
+     <Link 
+      text={this.props.text} 
+      active={this.props.filter === state.visibilityFilter} 
+      onClick={() => {
+        store.dispatch({
+          type: 'SET_VISIBILITY_FILTER',
+          filter: this.props.filter,
+        });
+      }} />
+    );
+  }
+}
+
+
+class VisibleTodoList extends React.Component {
+
+  componentDidMount() {
+    this.unsubscribe = store.subscribe(() => {
+      this.forceUpdate();
+    });
+  }
+
+  componentWillUnmount() {
+    this.unsubscribe();
+  }
+
+  render() {
+    this.state = store.getState();
+    const ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
+    let dataSource = ds.cloneWithRows(getVisibleTodos(this.state.todos, this.state.visibilityFilter));
+    return (
+      <TodoList 
+      dataSource={dataSource}
+      onTodoClick={id => 
+        store.dispatch({
+          type: 'TOGGLE_TODO',
+          id
+        })
+      }
+      />
     );
   }
 }
@@ -119,6 +166,19 @@ class TodoList extends React.Component {
   }
 }
 
+class Todo extends React.Component {
+  render() {
+    return (
+      <TouchableHighlight onPress={this.props.onClick}>
+        <Text style={{
+          textDecorationLine: this.props.completed ? 'line-through' : 'none', 
+          textDecorationStyle: 'solid'
+        }}>{this.props.text} + {this.props.completed + ''}</Text>
+      </TouchableHighlight>
+    );
+  }
+}
+
 
 class AddTodo extends React.Component {
   render() {
@@ -131,12 +191,15 @@ class AddTodo extends React.Component {
             style={styles.input}
             autoCapitalize={'none'}
             onChangeText={(todoname) => this.setState({todoname})}
-            //onChangeText={(todoname) => todotext = todoname})} 
         />
         <Button
           onPress={() => { 
             input.setNativeProps({text: ''});
-            this.props.onButtonClick(this.state.todoname);
+            store.dispatch({
+                type: 'ADD_TODO',
+                text: this.state.todoname,
+                id: nextTodoId++,
+              });
           }}
           title="Add To Do"
           color="#841584"
@@ -152,9 +215,9 @@ class Footer extends React.Component {
   render() {
     return (
       <View>
-        <FilterLink text='All' filter='SHOW_ALL' currentfilter={this.props.currentfilter} onClick={this.props.onFilterClick} />
-        <FilterLink text='Active' filter='SHOW_ACTIVE' currentfilter={this.props.currentfilter} onClick={this.props.onFilterClick} />
-        <FilterLink text='Completed' filter='SHOW_COMPLETED' currentfilter={this.props.currentfilter} onClick={this.props.onFilterClick} />
+        <FilterLink text='All' filter='SHOW_ALL' />
+        <FilterLink text='Active' filter='SHOW_ACTIVE' />
+        <FilterLink text='Completed' filter='SHOW_COMPLETED' />
       </View>
     );
   }
@@ -165,79 +228,17 @@ class Footer extends React.Component {
 
 export default class App extends React.Component {
 
-constructor() {
-    super();
-    const ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
-    this.store = store;
-    this.todos = getVisibleTodos(this.store.getState().todos, this.store.getState().visibilityFilter);
-    this.currentfilter = this.store.getState().visibilityFilter;
-    // this.store.subscribe(() => {
-    //   this.todos = this.store.getState().todos;
-    // });
-    this.store.subscribe(() => {
-      let todos = getVisibleTodos(this.store.getState().todos, this.store.getState().visibilityFilter);
-      this.state.dataSource = ds.cloneWithRows(todos);
-      this.currentfilter = this.store.getState().visibilityFilter;
-    });
-    //this.dataSource = dataSource: ds.cloneWithRows(this.todos),
-    this.state = {
-      dataSource: ds.cloneWithRows(this.todos),
-    };
-    this.handler = this.handler.bind(this);
-  }
-
-handler() {
-  this.setState({update: true});
-}
-
-
-// todosHandler() {
-//   let todos = getVisibleTodos(this.store.getState().todos, this.store.getState().visibilityFilter);
-//   this.state.dataSource = ds.cloneWithRows(todos);
-// }
-  
-_onPressButton() {
-  console.log('pressed');
-}
-
-
   render() {
     return (
       <Provider store={store}>
         <View style={styles.container}>
 
-          <AddTodo 
-            onButtonClick={(text) => { 
-              this.store.dispatch({
-                type: 'ADD_TODO',
-                text: text,
-                id: nextTodoId++,
-              });
-            this.handler();
-          }} />
+          <AddTodo />
 
-          <TodoList 
-            dataSource={this.state.dataSource}
-            onTodoClick={(id) => {
-                this.store.dispatch({
-                  type: 'TOGGLE_TODO',
-                  id: id,
-                });
-                this.handler();
-              }
-            }
-          />
+          <VisibleTodoList />
 
-          <Footer onFilterClick={(filter) => {
-            console.log('filter send in is:', filter);
-              this.store.dispatch({
-                  type: 'SET_VISIBILITY_FILTER',
-                  filter: filter,
-                });
-              this.handler();
-            }}
-            currentfilter={this.currentfilter}
-          />
+          <Footer />
+
           <Text>Open up App.js to start working on your app!</Text>
           <Text>Changes you make will automatically reload.</Text>
           <Text>Shake your phone to open the developer menu.</Text>
