@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, Button, ListView, TextInput, FlatList, TouchableHighlight } from 'react-native';
 import { createStore, combineReducers } from 'redux';
-import { Provider } from 'react-redux';
+import { Provider, connect } from 'react-redux';
 
 const todo = (state, action) => {
   switch (action.type) {
@@ -66,12 +66,6 @@ const getVisibleTodos = (todos, filter) => {
 
 const todoApp = combineReducers({todos, visibilityFilter});
 
-const store = createStore(todoApp);
-
-//store.subscribe(render);
-store.subscribe((action) => {
-    console.log(store.getState());
-  });
 
 let nextTodoId = 0;
 
@@ -88,65 +82,25 @@ class Link extends React.Component {
   }
 }
 
-class FilterLink extends React.Component {
-  
-  componentDidMount() {
-    this.unsubscribe = store.subscribe(() => {
-      this.forceUpdate();
-    });
-  }
-
-  componentWillUnmount() {
-    this.unsubscribe();
-  }
-
-  render() {
-    state = store.getState();
-
-    return (
-     <Link 
-      text={this.props.text} 
-      active={this.props.filter === state.visibilityFilter} 
-      onClick={() => {
-        store.dispatch({
-          type: 'SET_VISIBILITY_FILTER',
-          filter: this.props.filter,
-        });
-      }} />
-    );
-  }
-}
-
-
-class VisibleTodoList extends React.Component {
-
-  componentDidMount() {
-    this.unsubscribe = store.subscribe(() => {
-      this.forceUpdate();
-    });
-  }
-
-  componentWillUnmount() {
-    this.unsubscribe();
-  }
-
-  render() {
-    this.state = store.getState();
-    const ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
-    let dataSource = ds.cloneWithRows(getVisibleTodos(this.state.todos, this.state.visibilityFilter));
-    return (
-      <TodoList 
-      dataSource={dataSource}
-      onTodoClick={id => 
-        store.dispatch({
-          type: 'TOGGLE_TODO',
-          id
-        })
-      }
-      />
-    );
-  }
-}
+const mapStateToLinkProps = (state, ownProps) => {
+  return {
+    active: ownProps.filter === state.visibilityFilter
+  };
+};
+const mapDispatchToLinkPorps = (dispatch, ownProps) => {
+  return {
+    onClick: () => {
+      dispatch({
+        type: 'SET_VISIBILITY_FILTER',
+        filter: ownProps.filter
+      })
+    }
+  };
+};
+const FilterLink = connect(
+  mapStateToLinkProps,
+  mapDispatchToLinkPorps
+)(Link);
 
 
 class TodoList extends React.Component {
@@ -180,13 +134,41 @@ class Todo extends React.Component {
 }
 
 
+const mapStateToTodoListProps = (state) => {
+  const ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
+  let dataSource = ds.cloneWithRows(getVisibleTodos(state.todos, state.visibilityFilter));
+  return {
+    todos: getVisibleTodos(
+      state.todos,
+      state.visibilityFilter,
+    ),
+    dataSource
+  };
+};
+const mapDispatchToTodoListPorps = (dispatch) => {
+  return {
+    onTodoClick: (id) => {
+      dispatch({
+        type: 'TOGGLE_TODO',
+        id
+      })
+    }
+  };
+};
+const VisibleTodoList = connect(
+  mapStateToTodoListProps,
+  mapDispatchToTodoListPorps
+)(TodoList);
+
+
+
 class AddTodo extends React.Component {
+
   render() {
   let input;
     return (
       <View>
         <TextInput 
-            //ref={component => this._textInput = component } 
             ref={component => input = component } 
             style={styles.input}
             autoCapitalize={'none'}
@@ -195,7 +177,7 @@ class AddTodo extends React.Component {
         <Button
           onPress={() => { 
             input.setNativeProps({text: ''});
-            store.dispatch({
+            this.props.dispatch({
                 type: 'ADD_TODO',
                 text: this.state.todoname,
                 id: nextTodoId++,
@@ -207,8 +189,8 @@ class AddTodo extends React.Component {
       </View>
     );
   }
-}
-
+};
+AddTodo = connect()(AddTodo);
 
 
 class Footer extends React.Component {
@@ -230,7 +212,7 @@ export default class App extends React.Component {
 
   render() {
     return (
-      <Provider store={store}>
+      <Provider store={createStore(todoApp)}>
         <View style={styles.container}>
 
           <AddTodo />
